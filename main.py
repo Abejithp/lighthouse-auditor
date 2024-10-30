@@ -1,25 +1,33 @@
 import subprocess
 import json
 import os
+import xml.etree.ElementTree as ET
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
 from dotenv import load_dotenv
+import requests
 
 
 load_dotenv()
 
 # Google Sheets API setup
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-SERVICE_ACCOUNT_FILE = "lighthouse-auditor\credentials.json"  # Path to your service account file
+SERVICE_ACCOUNT_FILE = "credentials.json"  # Path to your service account file
 SPREADSHEET_ID = os.getenv("SHEET_ID")  # Replace with your spreadsheet ID
 SHEET_NAME = 'Sheet1'  # Replace with your sheet name
+
 
 creds = service_account.Credentials.from_service_account_file(
     SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 service = build('sheets', 'v4', credentials=creds)
 
+#load in json file from lighthouse-auditor/audits.json
+with open('audits.json', 'r') as file:
+    audits = json.load(file)
+
+
 def audit_page(url):
-    report_path = f"lighthouse-auditor/reports/{url.replace('https://', '').replace('/', '_')}.json"
+    report_path = f"reports/{url.replace('https://', '').replace('/', '_')}.json"
     os.makedirs(os.path.dirname(report_path), exist_ok=True)
 
     lighthouse_path = os.getenv("LIGHTHOUSE_PATH")  # Path to Lighthouse CLI
@@ -46,7 +54,7 @@ def audit_page(url):
     return accessibility_score
 
 def write_issues(row, url):
-    report_path = f"lighthouse-auditor/reports/{url.replace('https://', '').replace('/', '_')}.json"
+    report_path = f"reports/{url.replace('https://', '').replace('/', '_')}.json"
     with open(report_path, "r", encoding="utf-8") as report_file:
         report_data = json.load(report_file)
         allIssues = report_data["audits"]
@@ -144,26 +152,46 @@ def write_results(row, url, accessibility_score):
     
     return 0
 
+def parse_xml():
+
+    LIMIT = 3
+    websites = audits['websites']
+    page_audits = {}
+     
+
+    for name in websites:
+        page_audits[name] = []
+
+        try:
+            response = requests.get(websites[name])
+            response.raise_for_status()
+
+            #parse the xml file
+            root = ET.fromstring(response.content)
+
+            for url in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc"):
+                page_audits[name].append(url.text)
+                
+                if(len(page_audits[name]) >= LIMIT):
+                    break
+        
+        except requests.exceptions.RequestException as e:
+            print(e)
+    
+
+    return page_audits
+
+
 def main():
 
-    urls = ["https://doris.digital.utsc.utoronto.ca/", "https://arabww.digital.utsc.utoronto.ca/"] # List of URLs to audit
+    page_audits = parse_xml()
 
-    for url in urls:
+    for name in page_audits:
+        urls = page_audits[name]
         count = 0
-
-        accessibility_score = audit_page(url)
-        count += write_results(1, url, accessibility_score)
-
-        search_url = url + "search-results"
-        accessibility_score = audit_page(search_url)
-        if(accessibility_score != -1):
-            count += write_results(5+count, search_url, accessibility_score) 
-
-        browse_url = url + "browse-works"
-        accessibility_score = audit_page(browse_url)
-        if(accessibility_score != -1):
-            count += write_results(9+count, browse_url, accessibility_score) 
-
+        for i , url in enumerate(urls):
+            accessibility_score = audit_page(url)
+            count += write_results(1+count+5*i, url, accessibility_score)
 
 if __name__ == "__main__":
     main()
