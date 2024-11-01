@@ -1,5 +1,6 @@
 {   
     "routes":{
+        "home": "",
         "people": "browse-people",
         "data": "browse-works",
         "search": "search-results",
@@ -7,19 +8,19 @@
         "about": "about"
     },
     "websites": {
-        "doris": "https://doris.digital.utsc.utoronto.ca/sitemap.xml",
-        "griot": "https://griot.digital.utsc.utoronto.ca/sitemap.xml",
-        "find": "https://find.digital.utsc.utoronto.ca/sitemap.xml",
-        "learn": "https://learn.digital.utsc.utoronto.ca/sitemap.xml",
-        "arabww": "https://arabww.digital.utsc.utoronto.ca/sitemap.xml",
-        "stories": "https://stories.digital.utsc.utoronto.ca/sitemap.xml",
-        "menus": "https://menus.digital.utsc.utoronto.ca/sitemap.xml",
-        "gundagunde": "https://gundagunde.digital.utsc.utoronto.ca/sitemap.xml",
-        "ecn": "https://ecn.digital.utsc.utoronto.ca/sitemap.xml",
-        "collections": "https://collections.digital.utsc.utoronto.ca/sitemap.xml",
-        "memory": "https://memory.digital.utsc.utoronto.ca/sitemap.xml",
-        "digital": "https://digital.utsc.utoronto.ca/sitemap.xml",
-        "tamil": "https://tamil.digital.utsc.utoronto.ca/sitemap.xml",
-        "drrp": "https://drrp.digital.utsc.utoronto.ca/sitemap.xml"
+        "doris": "https://doris.digital.utsc.utoronto.ca/",
+        "griot": "https://griot.digital.utsc.utoronto.ca/",
+        "find": "https://find.digital.utsc.utoronto.ca/",
+        "learn": "https://learn.digital.utsc.utoronto.ca/",
+        "arabww": "https://arabww.digital.utsc.utoronto.ca/",
+        "stories": "https://stories.digital.utsc.utoronto.ca/",
+        "menus": "https://menus.digital.utsc.utoronto.ca/",
+        "gundagunde": "https://gundagunde.digital.utsc.utoronto.ca/",
+        "ecn": "https://ecn.digital.utsc.utoronto.ca/",
+        "collections": "https://collections.digital.utsc.utoronto.ca/",
+        "memory": "https://memory.digital.utsc.utoronto.ca/",
+        "digital": "https://digital.utsc.utoronto.ca/",
+        "tamil": "https://tamil.digital.utsc.utoronto.ca/",
+        "drrp": "https://drrp.digital.utsc.utoronto.ca/"
     }
 }

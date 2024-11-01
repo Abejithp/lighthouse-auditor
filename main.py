@@ -6,6 +6,7 @@ from googleapiclient.discovery import build
 from google.oauth2 import service_account
 from dotenv import load_dotenv
 import requests
+import sys
 
 
 load_dotenv()
@@ -163,7 +164,7 @@ def parse_xml():
         page_audits[name] = []
 
         try:
-            response = requests.get(websites[name])
+            response = requests.get(websites[name]+"/sitemap.xml")
             response.raise_for_status()
 
             #parse the xml file
@@ -182,16 +183,43 @@ def parse_xml():
     return page_audits
 
 
+def parse_routes():
+    websites = audits['websites']
+    routes= audits['routes']
+    page_audits = {}
+
+    for name in websites:
+        page_audits[name] = []
+
+        for route in routes:
+            page_audits[name].append(websites[name] + routes[route])
+    
+    return page_audits
+
+
 def main():
 
-    page_audits = parse_xml()
+    if(len(sys.argv) < 2):
+        print("1. Run audit on all pages\n2. Run audit only on routes")
+        return
+    elif(sys.argv[1] == "1"):
+        page_audits = parse_xml()
+    elif(sys.argv[1] == "2"):
+        page_audits = parse_routes()
+    else:
+        print("Invalid argument")
+        return
 
     for name in page_audits:
         urls = page_audits[name]
         count = 0
-        for i , url in enumerate(urls):
+        idx = 0
+        
+        for url in urls:
             accessibility_score = audit_page(url)
-            count += write_results(1+count+5*i, url, accessibility_score)
+            if accessibility_score != -1:
+                count += write_results(1+count+5*idx, url, accessibility_score)
+                idx += 1
 
 if __name__ == "__main__":
     main()
