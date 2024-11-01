@@ -203,9 +203,9 @@ def main():
         print("1. Run audit on all pages\n2. Run audit only on routes")
         return
     elif(sys.argv[1] == "1"):
-        page_audits = parse_xml()
-    elif(sys.argv[1] == "2"):
         page_audits = parse_routes()
+    elif(sys.argv[1] == "2"):
+        page_audits = parse_xml()
     else:
         print("Invalid argument")
         return
