@@ -54,7 +54,7 @@ def audit_page(url):
 
     return accessibility_score
 
-def write_issues(row, url):
+def write_issues(index, url):
     report_path = f"reports/{url.replace('https://', '').replace('/', '_')}.json"
     with open(report_path, "r", encoding="utf-8") as report_file:
         report_data = json.load(report_file)
@@ -88,27 +88,33 @@ def write_issues(row, url):
             }
         ).execute()
 
-    # Add headers to the new sheet
-    sheet.values().update(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f"{sheet_name}!A{row}:B{row}",
-        valueInputOption="USER_ENTERED",
-        body={"values": [["Issues"]]}
-    ).execute()
+    # # Add headers to the new sheet
+    # sheet.values().update(
+    #     spreadsheetId=SPREADSHEET_ID,
+    #     range=f"{sheet_name}!A{row}:B{row}",
+    #     valueInputOption="USER_ENTERED",
+    #     body={"values": [["Issues"]]}
+    # ).execute()
 
     # Write back the issues to the Google Sheet
     for i, issue in enumerate(issues):
         sheet.values().update(
             spreadsheetId=SPREADSHEET_ID,
-            range=f"{sheet_name}!A{row+i+1}:B{row+i+1}",
+            range=f"{sheet_name}!{column_name(index)}{i+2}:{column_name(index+1)}{i+2}",
             valueInputOption="USER_ENTERED",
             body={"values": [[issue]]}
         ).execute()
 
-    return len(issues)
+    return 0
 
+def column_name(index):
+    result = ""
+    while index >= 0:
+        result = chr(index % 26 + ord('A')) + result
+        index = index // 26 - 1
+    return result
 
-def write_results(row, url, accessibility_score):
+def write_results(index, url, accessibility_score):
     sheet = service.spreadsheets()
     sheet_name = url.split('//')[1].split('.')[0]
 
@@ -131,26 +137,58 @@ def write_results(row, url, accessibility_score):
             }
         ).execute()
 
+        # Retrieve the sheet ID for the new sheet
+        sheet_metadata = service.spreadsheets().get(spreadsheetId=SPREADSHEET_ID).execute()
+        all_sheets = sheet_metadata.get("sheets", [])
+        sheet_id = None
+        for sheet in all_sheets:
+            if sheet["properties"]["title"] == sheet_name:
+                sheet_id = sheet["properties"]["sheetId"]
+                break
 
+        # Apply "clip" wrap strategy to all cells in the new sheet
+        if sheet_id is not None:
+            service.spreadsheets().batchUpdate(
+                spreadsheetId=SPREADSHEET_ID,
+                body={
+                    "requests": [
+                        {
+                            "repeatCell": {
+                                "range": {
+                                    "sheetId": sheet_id
+                                },
+                                "cell": {
+                                    "userEnteredFormat": {
+                                        "wrapStrategy": "CLIP"
+                                    }
+                                },
+                                "fields": "userEnteredFormat.wrapStrategy"
+                            }
+                        }
+                    ]
+                }
+            ).execute()
+
+    sheet = service.spreadsheets()
     sheet.values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range=f"{sheet_name}!A{row}:B{row}",
+        range=f"{sheet_name}!{column_name(index)}1:{column_name(index+2)}1",
         valueInputOption="USER_ENTERED",
-        body={"values": [["URL", "Accessibility Score"]]}
+        body={"values": [["URL", "Accessibility Score", "Issues"]]}
     ).execute()
 
     # Writing the URL, accessibility score, and report path back to the Google Sheet
     sheet.values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range=f"{sheet_name}!A{row+1}:b{row+1}",
+        range=f"{sheet_name}!{column_name(index)}2:{column_name(index+1)}2",
         valueInputOption="USER_ENTERED",
         body={"values": [[url, accessibility_score]]}
     ).execute()
 
     # Write back the issues to the Google Sheet
     if accessibility_score != -1:
-        return write_issues(row+2, url)
-    
+        return write_issues(index+2, url)
+
     return 0
 
 def parse_xml():
@@ -200,7 +238,7 @@ def parse_routes():
 def main():
 
     if(len(sys.argv) < 2):
-        print("1. Run audit on all pages\n2. Run audit only on routes")
+        print("1. Run audit only on routes\n2. Run audit only on xml sitemap of each page")
         return
     elif(sys.argv[1] == "1"):
         page_audits = parse_routes()
@@ -218,7 +256,7 @@ def main():
         for url in urls:
             accessibility_score = audit_page(url)
             if accessibility_score != -1:
-                count += write_results(1+count+5*idx, url, accessibility_score)
+                count += write_results(count+4*idx, url, accessibility_score)
                 idx += 1
 
 if __name__ == "__main__":
