@@ -6,7 +6,6 @@ from googleapiclient.discovery import build
 from google.oauth2 import service_account
 from dotenv import load_dotenv
 import requests
-import sys
 
 
 load_dotenv()
@@ -191,9 +190,8 @@ def write_results(index, url, accessibility_score):
 
     return 0
 
-def parse_xml():
+def parse_xml(limit):
 
-    LIMIT = 3
     websites = audits['websites']
     page_audits = {}
      
@@ -209,9 +207,13 @@ def parse_xml():
             root = ET.fromstring(response.content)
 
             for url in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc"):
+
+                if '?' in url.text:
+                    continue
+
                 page_audits[name].append(url.text)
                 
-                if(len(page_audits[name]) >= LIMIT):
+                if(len(page_audits[name]) >= limit):
                     break
         
         except requests.exceptions.RequestException as e:
@@ -234,19 +236,81 @@ def parse_routes():
     
     return page_audits
 
+def delete_reports():
+    # Get list of sheets
+    sheet_metadata = service.spreadsheets().get(spreadsheetId=SPREADSHEET_ID).execute()
+    all_sheets = sheet_metadata.get("sheets", [])
+
+    # Ensure there is more than one sheet to delete
+    if len(all_sheets) > 1:
+        # Delete all sheets except the first one
+        for sheet in all_sheets[1:]:
+            sheet_id = sheet["properties"]["sheetId"]
+            service.spreadsheets().batchUpdate(
+                spreadsheetId=SPREADSHEET_ID,
+                body={
+                    "requests": [
+                        {
+                            "deleteSheet": {
+                                "sheetId": sheet_id
+                            }
+                        }
+                    ]
+                }
+            ).execute()
+
+
+    #Clear the first sheet
+    sheet_name = all_sheets[0]["properties"]["title"]
+    sheet = service.spreadsheets()
+    sheet.values().clear(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f"{sheet_name}!A1:Z1000"
+    ).execute()
+
+    #rename the first sheet to Sheet1
+    service.spreadsheets().batchUpdate(
+        spreadsheetId=SPREADSHEET_ID,
+        body={
+            "requests": [
+                {
+                    "updateSheetProperties": {
+                        "properties": {
+                            "sheetId": all_sheets[0]["properties"]["sheetId"],
+                            "title": "Sheet1"
+                        },
+                        "fields": "title"
+                    }
+                }
+            ]
+        }
+    ).execute()
+
+    print("All reports have been deleted")
 
 def main():
 
-    if(len(sys.argv) < 2):
-        print("1. Run audit only on routes\n2. Run audit only on xml sitemap of each page")
-        return
-    elif(sys.argv[1] == "1"):
+    options = None
+
+    print("1. Run audit only on routes")
+    print("2. Run audit on sitemap.xml")
+    print("3. Delete all reports")
+    options = int(input("Enter your choice: "))
+    page_audits = {}
+
+    if options == 1:
         page_audits = parse_routes()
-    elif(sys.argv[1] == "2"):
-        page_audits = parse_xml()
-    else:
-        print("Invalid argument")
+    elif options == 2:
+        print("Enter the limit of URLs you would like to audit in the sitemaps")
+        limit = int(input("Enter the limit:"))
+        page_audits = parse_xml(limit)
+    elif options == 3:
+        delete_reports()
         return
+    else:
+        print("Invalid choice")
+        return
+
 
     for name in page_audits:
         urls = page_audits[name]

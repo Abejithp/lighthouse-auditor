@@ -93,18 +93,12 @@ Feel free to modify the structure of the audit.json file to suit your specific n
 
 ## Usage
 
-To start the auditing process, execute the following command in your terminal:
+To begin the auditing process, run the following command in your terminal and follow the interactive prompts:
 
 ```bash
-python main.py 1
+python main.py 
 ```
-This command will parse the URLs provided in the `audit.json` file along with the routes specified.
 
-Alternatively, to check the `sitemap.xml` of the specified URLs, use:
-
-```bash
-python main.py 2
-```
 
 ### Check the Results
 
