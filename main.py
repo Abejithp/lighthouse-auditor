@@ -6,6 +6,7 @@ from googleapiclient.discovery import build
 from google.oauth2 import service_account
 from dotenv import load_dotenv
 import requests
+import csv
 
 
 load_dotenv()
@@ -21,9 +22,11 @@ creds = service_account.Credentials.from_service_account_file(
     SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 service = build('sheets', 'v4', credentials=creds)
 
-#load in json file from lighthouse-auditor/audits.json
-with open('audits.json', 'r') as file:
-    audits = json.load(file)
+audits = []
+
+with open('audits.csv', mode='r') as file:
+    csv_reader = csv.DictReader(file)
+    audits = [row['URL'] for row in csv_reader]  # List comprehension inside the 'with' block
 
 
 def audit_page(url):
@@ -122,29 +125,32 @@ def write_results(index, url, accessibility_score):
 
 def parse_xml(limit):
 
-    websites = audits['websites']
-    page_audits = {}
-     
+    page_audits = []
 
-    for name in websites:
-        page_audits[name] = []
+    current_limit = 0
+     
+    for url in audits:
 
         try:
-            response = requests.get(websites[name]+"/sitemap.xml")
+            response = requests.get(url+"/sitemap.xml")
             response.raise_for_status()
 
             #parse the xml file
             root = ET.fromstring(response.content)
 
-            for url in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc"):
+            for sub_url in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc"):
 
-                if '?' in url.text:
+                if '?' in sub_url.text:
                     continue
 
-                page_audits[name].append(url.text)
-                
-                if(len(page_audits[name]) >= limit):
+                if current_limit == limit:
+                    current_limit = 0
                     break
+
+                current_limit += 1
+
+                page_audits.append(sub_url.text)
+    
         
         except requests.exceptions.RequestException as e:
             print(e)
@@ -152,19 +158,6 @@ def parse_xml(limit):
 
     return page_audits
 
-
-def parse_routes():
-    websites = audits['websites']
-    routes= audits['routes']
-    page_audits = {}
-
-    for name in websites:
-        page_audits[name] = []
-
-        for route in routes:
-            page_audits[name].append(websites[name] + routes[route])
-    
-    return page_audits
 
 def delete_reports():
     # Get list of sheets
@@ -226,29 +219,30 @@ def main():
     print("2. Run audit on sitemap.xml")
     print("3. Delete all reports")
     options = int(input("Enter your choice: "))
-    page_audits = {}
+
 
     if options == 1:
-        page_audits = parse_routes()
+        pass
+    
     elif options == 2:
         print("Enter the limit of URLs you would like to audit in the sitemaps")
         limit = int(input("Enter the limit:"))
-        page_audits = parse_xml(limit)
+        audits = parse_xml(limit)
+
     elif options == 3:
         delete_reports()
         return
+    
     else:
         print("Invalid choice")
         return
 
     idx = 2
-    for name in page_audits:
-        urls = page_audits[name]    
-        for url in urls:
-            accessibility_score = audit_page(url)
-            if accessibility_score != -1:
-                write_results(idx, url, accessibility_score)
-                idx += 1
+    for url in audits:
+        accessibility_score = audit_page(url)
+        if accessibility_score != -1:
+            write_results(idx, url, accessibility_score)
+            idx += 1
 
 if __name__ == "__main__":
     main()
