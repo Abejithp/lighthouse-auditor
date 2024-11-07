@@ -24,13 +24,47 @@ service = build('sheets', 'v4', credentials=creds)
 
 audits = []
 
+categories = {
+    "performance": {
+        "title": "Performance",
+        "column": "C",
+    },
+    "accessibility": {
+        "title": "Accessibility",
+        "column": "E",
+    },
+    "best-practices": {
+        "title": "Best Practices",
+        "column": "F",
+    },
+    "seo": {
+        "title": "SEO",
+        "column": "H",
+    },
+}
+columns = ["C", "E", "G", "H"]
+
+with open("config.json", "r", encoding="utf-8") as config:
+    report_data = json.load(config)
+    idx = 0
+    for category in report_data["categories"]:
+        if(report_data["categories"][category] == 1):
+            os.makedirs(f"reports/{category}", exist_ok=True)
+            categories[category]["column"] = columns[idx]
+            idx += 1
+        else:
+            categories.pop(category)
+
+
+
+
 with open('audits.csv', mode='r') as file:
     csv_reader = csv.DictReader(file)
-    audits = [row['URL'] for row in csv_reader]  # List comprehension inside the 'with' block
+    audits = [row['URL'] for row in csv_reader]  
 
 
-def audit_page(url):
-    report_path = f"reports/{url.replace('https://', '').replace('/', '_')}.json"
+def audit_page(url, category):
+    report_path = f"reports/{category}/{url.replace('https://', '').replace('/', '_')}.json"
     os.makedirs(os.path.dirname(report_path), exist_ok=True)
 
     lighthouse_path = os.getenv("LIGHTHOUSE_PATH")  # Path to Lighthouse CLI
@@ -42,7 +76,7 @@ def audit_page(url):
             url,
             "--output=json",
             "--output-path=" + report_path,
-            "--only-categories=accessibility",
+            "--only-categories=" + category,
             "--chrome-flags=--headless"
         ]
         subprocess.run(command, check=True)
@@ -52,12 +86,57 @@ def audit_page(url):
     # Load and parse the Lighthouse report
     with open(report_path, "r", encoding="utf-8") as report_file:
         report_data = json.load(report_file)
-        accessibility_score = report_data["categories"]["accessibility"]["score"]
+        accessibility_score = report_data["categories"][category]["score"]
 
     return accessibility_score
 
-def write_issues(index, url):
-    report_path = f"reports/{url.replace('https://', '').replace('/', '_')}.json"
+
+def init_headers():
+    sheet = service.spreadsheets()
+    sheet.values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f"Sheet1!A1:B1",
+        valueInputOption="USER_ENTERED",
+        body={"values": [["Site", "URL"]]}
+    ).execute()
+
+    for category in categories:
+        sheet.values().update(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f"Sheet1!{categories[category]['column']}1",
+            valueInputOption="USER_ENTERED",
+            body={"values": [[categories[category]["title"]+ " Score"]]}
+        ).execute()
+
+        sheet.values().update(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f"Sheet1!{chr(ord(categories[category]['column']) + 1)}1",
+            valueInputOption="USER_ENTERED",
+            body={"values": [[categories[category]["title"]+" Issues"]]}
+        ).execute()
+
+
+def write_results(index, url, score, category):
+    sheet = service.spreadsheets()
+    sheet_name = url.split('//')[1].split('.')[0]
+
+    issue_col = chr(ord(categories[category]["column"]) + 1)
+
+    sheet.values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f"Sheet1!A{index}:C{index}",
+        valueInputOption="USER_ENTERED",
+        body={"values": [[sheet_name, url]]}
+    ).execute()
+
+    sheet.values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f"Sheet1!{categories[category]['column']}{index}",
+        valueInputOption="USER_ENTERED",
+        body={"values": [[score]]}
+    ).execute()
+
+    report_path = f"reports/{category}/{url.replace('https://', '').replace('/', '_')}.json"
     with open(report_path, "r", encoding="utf-8") as report_file:
         report_data = json.load(report_file)
         allIssues = report_data["audits"]
@@ -72,56 +151,13 @@ def write_issues(index, url):
     issue_str = "\n".join(issues)
     sheet.values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range=f"Sheet1!D{index}",
+        range=f"Sheet1!{issue_col}{index}",
         valueInputOption="USER_ENTERED",
         body={"values": [[issue_str]]}
     ).execute()
 
-    return
+    return 
 
-def write_results(index, url, accessibility_score):
-    sheet = service.spreadsheets()
-    sheet_name = url.split('//')[1].split('.')[0]
-
-    #Add a new sheet to the spreadsheet if it doesn't exist
-    try:
-        sheet.values().get(spreadsheetId=SPREADSHEET_ID, range=f"Sheet1!A1").execute()
-    except:
-        sheet.batchUpdate(
-            spreadsheetId=SPREADSHEET_ID,
-            body={
-                "requests": [
-                    {
-                        "addSheet": {
-                            "properties": {
-                                "title": "Sheet1",
-                            }
-                        }
-                    }
-                ]
-            }
-        ).execute()
-
-    sheet.values().update(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f"Sheet1!A1:D1",
-        valueInputOption="USER_ENTERED",
-        body={"values": [["Site", "URL", "Accessibility Score", "Issues"]]}
-    ).execute()
-
-    # Writing the URL, accessibility score, and report path back to the Google Sheet
-    sheet.values().update(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f"Sheet1!A{index}:C{index}",
-        valueInputOption="USER_ENTERED",
-        body={"values": [[sheet_name, url, accessibility_score]]}
-    ).execute()
-
-    # Write back the issues to the Google Sheet
-    if accessibility_score != -1:
-        return write_issues(index, url)
-
-    return
 
 def parse_xml(limit):
 
@@ -238,13 +274,16 @@ def main():
     else:
         print("Invalid choice")
         return
+    
+    init_headers()
 
     idx = 2
     for url in pages:
-        accessibility_score = audit_page(url)
-        if accessibility_score != -1:
-            write_results(idx, url, accessibility_score)
-            idx += 1
+        for category in categories:
+            accessibility_score = audit_page(url, category)
+            if accessibility_score != -1:
+                write_results(idx, url, accessibility_score, category)
+        idx += 1
 
 if __name__ == "__main__":
     main()
