@@ -220,14 +220,16 @@ def main():
     print("3. Delete all reports")
     options = int(input("Enter your choice: "))
 
+    pages = []
 
     if options == 1:
+        pages = audits
         pass
-    
+
     elif options == 2:
         print("Enter the limit of URLs you would like to audit in the sitemaps")
         limit = int(input("Enter the limit:"))
-        audits = parse_xml(limit)
+        pages = parse_xml(limit)
 
     elif options == 3:
         delete_reports()
@@ -238,7 +240,7 @@ def main():
         return
 
     idx = 2
-    for url in audits:
+    for url in pages:
         accessibility_score = audit_page(url)
         if accessibility_score != -1:
             write_results(idx, url, accessibility_score)
