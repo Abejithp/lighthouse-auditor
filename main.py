@@ -65,12 +65,11 @@ def write_issues(index, url):
             issues.append(allIssues[issue]["title"])
     
     sheet = service.spreadsheets()
-    sheet_name = url.split('//')[1].split('.')[0]
 
     issue_str = "\n".join(issues)
     sheet.values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range=f"{sheet_name}!C{index}",
+        range=f"Sheet1!D{index}",
         valueInputOption="USER_ENTERED",
         body={"values": [[issue_str]]}
     ).execute()
@@ -83,7 +82,7 @@ def write_results(index, url, accessibility_score):
 
     #Add a new sheet to the spreadsheet if it doesn't exist
     try:
-        sheet.values().get(spreadsheetId=SPREADSHEET_ID, range=f"{sheet_name}!A1").execute()
+        sheet.values().get(spreadsheetId=SPREADSHEET_ID, range=f"Sheet1!A1").execute()
     except:
         sheet.batchUpdate(
             spreadsheetId=SPREADSHEET_ID,
@@ -92,7 +91,7 @@ def write_results(index, url, accessibility_score):
                     {
                         "addSheet": {
                             "properties": {
-                                "title": sheet_name,
+                                "title": "Sheet1",
                             }
                         }
                     }
@@ -100,19 +99,19 @@ def write_results(index, url, accessibility_score):
             }
         ).execute()
 
-        sheet.values().update(
-            spreadsheetId=SPREADSHEET_ID,
-            range=f"{sheet_name}!A1:C1",
-            valueInputOption="USER_ENTERED",
-            body={"values": [["URL", "Accessibility Score", "Issues"]]}
-        ).execute()
+    sheet.values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f"Sheet1!A1:D1",
+        valueInputOption="USER_ENTERED",
+        body={"values": [["Site", "URL", "Accessibility Score", "Issues"]]}
+    ).execute()
 
     # Writing the URL, accessibility score, and report path back to the Google Sheet
     sheet.values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range=f"{sheet_name}!A{index}:C{index}",
+        range=f"Sheet1!A{index}:C{index}",
         valueInputOption="USER_ENTERED",
-        body={"values": [[url, accessibility_score]]}
+        body={"values": [[sheet_name, url, accessibility_score]]}
     ).execute()
 
     # Write back the issues to the Google Sheet
@@ -242,11 +241,9 @@ def main():
         print("Invalid choice")
         return
 
-
+    idx = 2
     for name in page_audits:
-        urls = page_audits[name]
-        idx = 2
-        
+        urls = page_audits[name]    
         for url in urls:
             accessibility_score = audit_page(url)
             if accessibility_score != -1:
