@@ -47,6 +47,9 @@ Set up a virtual environment and install the required libraries:
 
 ```bash
 pip install -r requirements.txt
+```
+
+```bash
 npm install -g lighthouse
 ```
 
@@ -61,35 +64,7 @@ LIGHTHOUSE_PATH=<Path to your Lighthouse CLI binary>
 
 ### 5. Prepare the Audit Configuration
 
-The tool uses an `audit.json` file to configure the websites to be audited. This file includes the routes and the associated website URLs. Here’s the structure of the `audit.json` file:
-
-```json
-{
-    "routes": {
-        "home": "",
-        "about": "about"
-    },
-    "websites": {
-        "example" : "https://example.com/"
-    }
-}
-```
-To add new websites for auditing, simply include the website's name and URL in the websites section of the `audit.json` file. For example:
-
-```json
-{
-    "routes": {
-        "home": "",
-        "about": "about"
-    },
-    "websites": {
-        "example" : "https://example.com/",
-        "newWebsite": "https://newwebsite.example.com/"
-    }
-}
-```
-
-Feel free to modify the structure of the audit.json file to suit your specific needs, as the current setup is designed for the Digital Scholarship Unit. Make sure to save your changes before running the audit tool. The script will read from this file and perform audits on the specified URLs.
+The tool uses an `audit.csv` file to configure the websites to be audited. This file includes one column of URLS to be audited. Simply add any additional URLs to this file that you would like to audit.
 
 ## Usage
 
