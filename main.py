@@ -39,7 +39,7 @@ with open("config.json", "r", encoding="utf-8") as config:
     report_data = json.load(config)
     idx = 0
     for category in list(report_data["categories"]):
-        if report_data["categories"][category] == 1:
+        if report_data["categories"][category]:
             os.makedirs(f"reports/{category}", exist_ok=True)
             categories[category]["column"] = columns[idx]
             idx += 1
@@ -142,7 +142,11 @@ def parse_xml(limit):
         try:
             response = requests.get(url + "/sitemap.xml")
             response.raise_for_status()
-            root = ET.fromstring(response.content)
+            try:
+                root = ET.fromstring(response.content)
+            except ET.ParseError as e:
+                print(f"Failed to parse XML for {url}: {e}")
+                continue
 
             for sub_url in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc"):
                 if '?' in sub_url.text:
@@ -152,7 +156,9 @@ def parse_xml(limit):
                 if current_limit == limit:
                     current_limit = 0
                     break
-    
+                
+                print("Adding: " + sub_url.text)
+
                 page_audits.append(sub_url.text)
                 current_limit += 1
                 
@@ -166,13 +172,18 @@ def parse_xml(limit):
         try:
             response = requests.get(url)
             response.raise_for_status()
-            root = ET.fromstring(response.content)
+            try:
+                root = ET.fromstring(response.content)
+            except ET.ParseError as e:
+                print(f"Failed to parse XML for {url}: {e}")
+                continue
 
             for sub_url in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc"):
                 if current_limit == limit:
                     current_limit = 0
                     break
-
+                
+                print("Adding: " + sub_url.text)
                 page_audits.append(sub_url.text)
                 current_limit += 1
 
@@ -210,21 +221,14 @@ def delete_reports():
 
     print("All reports have been deleted")
 
-def write_broken(url, data, index):
+def write_broken():
+    with open('broken_links.csv', mode='r') as file:
+        csv_reader = csv.DictReader(file)
+        broken = [row for row in csv_reader]
 
     sheet = service.spreadsheets()
-
-    sheet.values().update(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f"Broken Links!A{index}:C{index}",
-        valueInputOption="USER_ENTERED",
-        body={"values": [[url, data[1], data[0]]]}
-    ).execute()
-
-
-def audit_links():
-
-    sheet = service.spreadsheets()
+    values = [[row['Base URL'], row['URL Text'], row['Broken URL'], row['Date']] for row in broken]
+    
     try:
         sheet.values().get(spreadsheetId=SPREADSHEET_ID, range="Broken Links!A1").execute()
         # Clear the existing data in the sheet:
@@ -252,42 +256,58 @@ def audit_links():
     #write headers
     sheet.values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range="Broken Links!A1:C1",
+        range="Broken Links!A1:D1",
         valueInputOption="USER_ENTERED",
-        body={"values": [["Base URL", "URL Text", "Broken URL"]]}
+        body={"values": [["Base URL", "URL Text", "Broken URL", "Date"]]}
     ).execute()
+
+
+    sheet.values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f"Broken Links!A2:D{len(values) + 1}",
+        valueInputOption="USER_ENTERED",
+        body={"values": values}
+    ).execute()
+
+    print("Broken links have been written to the Google Sheet")
+
+
+
+def audit_links():
+
 
     print("Parsing links from site map")
 
-    links = parse_xml(20)
+    links = parse_xml(MAX_LIMIT)
     audit = {}
 
     for link in links:
         audit[link] = []
 
-    try:
+    print("Finding search results pages")
 
-        print("Finding search results pages")
-
-        for link in links:
+    for link in links:
+        print("Working on: " + link)
+        try:
             response = requests.get(link)
             response.raise_for_status()
             soup = BeautifulSoup(response.content, 'html.parser')  
 
             base_url = link.split(".ca")[0] + ".ca"
-            
+            date = time.strftime("%Y-%m-%d %H:%M:%S")
+
             for a in soup.find_all('a', href=True):
-                if('search-results' in a['href']):
-                    if("http" in a['href']):
+
+                if 'search-results' in a['href']:
+                    if "http" in a['href']:
                         # check if the link is already in the audit
                         if a['href'] not in audit[link]:
-                            audit[link].append(((a['href']), a.text))
+                            audit[link].append((a.text, a['href'], date))
                     else:
                         if (base_url + a['href'].replace(" ", "%20")) not in audit[link]:
-                            audit[link].append(((base_url +  a['href'].replace(" ", "%20")), a.text))
-
-    except requests.exceptions.RequestException as e:
-        print(e)
+                            audit[link].append(( a.text, base_url + a['href'].replace(" ", "%20"), date))
+        except requests.exceptions.RequestException as e:
+            print(e)
 
     broken = {}
     index = 2
@@ -301,7 +321,7 @@ def audit_links():
         urls = audit[key]
 
         for data in urls:
-            url = data[0]
+            url = data[1]
             print("Checking: " + url)
 
             try:
@@ -311,33 +331,33 @@ def audit_links():
 
                 for p in soup.find_all('p'):
                     if('search returned no results' in p.text):
-                        write_broken(key, data, index)
                         broken[key].append(data)
                         index += 1
+                        break
             
             except requests.exceptions.RequestException as e:
                 print(e)
-
-            # add a delay to avoid getting blocked
-            time.sleep(1)
 
     #write broken into a csv file
     open('broken_links.csv', 'w').close()
     with open('broken_links.csv', mode='w') as file:
         writer = csv.writer(file)
-        writer.writerow(["Base URL", "URL Text", "Broken URL"])
+        writer.writerow(["Base URL", "URL Text", "Broken URL", "Date"])
         for key, value in broken.items():
             for v in value:
-                writer.writerow([key, v[1], v[0]])
+                writer.writerow([key, v[0], v[1], v[2]])
+
 
     print("Audit complete")
+    write_broken()
 
 # Main function to run the script
 def main():
     print("1. Run audit only on routes")
     print("2. Run audit on sitemap.xml")
-    print("3. Delete all reports")
-    print("4. Audit broken links")
+    print("3. Audit broken links")
+    print("4. Delete all reports")
+
     options = int(input("Enter your choice: "))
 
     if options == 1:
@@ -346,10 +366,10 @@ def main():
         limit = int(input("Enter the limit of URLs you would like to audit in the sitemaps: "))
         pages = parse_xml(limit)
     elif options == 3:
-        delete_reports()
+        audit_links()
         return
     elif options == 4:
-        audit_links()
+        delete_reports()
         return
     else:
         print("Invalid choice")

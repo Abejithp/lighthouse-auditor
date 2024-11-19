@@ -1,8 +1,8 @@
 {
     "categories": {
-        "accessibility": 1,
-        "performance": 0,
-        "best-practices": 0,
-        "seo": 0
+        "accessibility": true,
+        "performance": false,
+        "best-practices": false,
+        "seo": false
     }
 }

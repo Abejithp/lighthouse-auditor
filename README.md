@@ -66,6 +66,8 @@ LIGHTHOUSE_PATH=<Path to your Lighthouse CLI binary>
 
 The tool uses an `audit.csv` file to configure the websites to be audited. This file includes one column of URLS to be audited. Simply add any additional URLs to this file that you would like to audit.
 
+The tool includes `config.json` where you can specify the categories you want to target for the lighthouse audit. To enable a category simply modify the values to be `true`
+
 ## Usage
 
 To begin the auditing process, run the following command in your terminal and follow the interactive prompts:
