@@ -30,16 +30,20 @@ cd lighthouse-auditor
    - In the **APIs & Services** section, click **Library**.
    - Search for "Google Sheets API" and enable it for your project.
 
-3. **Generate and download OAuth 2.0 credentials**:
+3. **Generate and Service credentials**:
    - Go to **APIs & Services > Credentials**.
-   - Click **Create Credentials** and select **OAuth client ID**.
-   - If prompted, configure the OAuth consent screen.
-   - Under **Application type**, select **Desktop app**.
-   - Click **Create** to generate your credentials, then download the JSON file.
+   - Click **Create Credentials** and select **Service Account**.
+   - Complete the Service Account details and provide it with owner permissions
+   - Click on your created Service Account and go to **Keys**
+   - Create a new key in json format
    
 4. **Save the credentials**:
    - Rename the downloaded file to `credentials.json`.
    - Place `credentials.json` in the root of your project directory.
+
+5. **Add Service Account**
+   - copy the email of the service account you have created.
+   - create a new **google sheet** and share the sheet to the copied email with **editor** permissions
 
 ### 3. Install dependencies
 
@@ -62,6 +66,20 @@ SPREADSHEET_ID=<Your Google Sheets spreadsheet ID>
 LIGHTHOUSE_PATH=<Path to your Lighthouse CLI binary>
 ```
 
+The spreadsheet id can be found within the link of the google sheet you have created
+
+```plaintext
+https://docs.google.com/spreadsheets/d/<SPREADSHEET_ID>/edit?gid=0#gid=0
+```
+On windows the lighthouse path is typically at:
+```plaintext
+C:\Users\<YourUsername>\AppData\Roaming\npm\lighthouse.cmd
+```
+
+on linux or mac use the following command to find the path:
+```bash
+which lighthouse
+```
 ### 5. Prepare the Audit Configuration
 
 The tool uses an `audit.csv` file to configure the websites to be audited. This file includes one column of URLS to be audited. Simply add any additional URLs to this file that you would like to audit.
