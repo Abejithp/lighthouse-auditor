@@ -18,7 +18,7 @@ A Python-based automation tool that audits websites for accessibility using Goog
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/lighthouse-auditor.git
+git clone git@github.com:Abejithp/lighthouse-auditor.git
 cd lighthouse-auditor
 ```
 
